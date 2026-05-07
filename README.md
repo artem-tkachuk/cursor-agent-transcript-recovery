@@ -18,6 +18,8 @@ Cursor stores Agent chat data in two layers:
 ```text
 ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb
 ~/Library/Application Support/Cursor/User/workspaceStorage/<workspace-id>/state.vscdb
+~/.config/Cursor/User/globalStorage/state.vscdb
+~/.config/Cursor/User/workspaceStorage/<workspace-id>/state.vscdb
 ```
 
 The transcript can still be present and individually openable, while the Agent
@@ -33,10 +35,16 @@ The important keys were:
 
 ## Critical Detail
 
-Run the repair from macOS Terminal after quitting Cursor completely.
+Run the repair from an external terminal after quitting Cursor completely.
 
 Running the patch from inside Cursor can be reverted because Cursor may rewrite
 `composer.composerHeaders` from its in-memory state.
+
+The script auto-detects Cursor's application support directory on macOS and
+Linux:
+
+- macOS: `~/Library/Application Support/Cursor`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/Cursor`
 
 ## Basic Usage
 
@@ -80,10 +88,17 @@ The dry run reports:
 
 ## Apply
 
-Quit Cursor:
+Quit Cursor on macOS:
 
 ```bash
 osascript -e 'quit app "Cursor"'
+sleep 5
+```
+
+Quit Cursor on Linux from your desktop environment, or use:
+
+```bash
+pkill -f '[Cc]ursor'
 sleep 5
 ```
 
@@ -92,7 +107,18 @@ Run the repair:
 ```bash
 cd "/path/to/workspace"
 python3 "/path/to/cursor-agent-transcript-recovery/fix_cursor_agent_index.py" --apply
+```
+
+Reopen Cursor on macOS:
+
+```bash
 open -a Cursor "/path/to/workspace"
+```
+
+Reopen Cursor on Linux if the `cursor` command is installed:
+
+```bash
+cursor "/path/to/workspace"
 ```
 
 The script refuses to apply while Cursor is open unless `--allow-running` is

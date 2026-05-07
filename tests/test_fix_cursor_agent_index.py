@@ -42,6 +42,21 @@ class RecoveryScriptTests(unittest.TestCase):
             "Users-example-Desktop-sample-project",
         )
 
+    def test_default_app_support_dir_uses_linux_xdg_config_home(self) -> None:
+        self.assertEqual(
+            recovery.default_app_support_dir(
+                platform="linux",
+                environ={"XDG_CONFIG_HOME": "/tmp/config"},
+            ),
+            Path("/tmp/config/Cursor"),
+        )
+
+    def test_default_app_support_dir_uses_linux_config_fallback(self) -> None:
+        self.assertEqual(
+            recovery.default_app_support_dir(platform="linux", environ={}),
+            Path.home() / ".config" / "Cursor",
+        )
+
     def test_cursor_running_detector_finds_cursor_app_processes(self) -> None:
         completed = subprocess.CompletedProcess(
             args=["ps"],
@@ -50,6 +65,24 @@ class RecoveryScriptTests(unittest.TestCase):
         )
         with patch.object(recovery.subprocess, "run", return_value=completed):
             self.assertTrue(recovery.cursor_is_running())
+
+    def test_cursor_running_detector_finds_linux_cursor_processes(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["ps"],
+            returncode=0,
+            stdout="/opt/Cursor/cursor --type=renderer\n",
+        )
+        with patch.object(recovery.subprocess, "run", return_value=completed):
+            self.assertTrue(recovery.cursor_is_running())
+
+    def test_cursor_running_detector_ignores_this_recovery_script(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["ps"],
+            returncode=0,
+            stdout="python3 fix_cursor_agent_index.py --apply\n",
+        )
+        with patch.object(recovery.subprocess, "run", return_value=completed):
+            self.assertFalse(recovery.cursor_is_running())
 
     def test_apply_repairs_fake_cursor_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

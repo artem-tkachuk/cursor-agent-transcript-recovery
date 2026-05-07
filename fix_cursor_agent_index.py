@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Repair Cursor Agent transcript indexing for a local workspace.
 
-Run from macOS Terminal after quitting Cursor. The script updates Cursor's local
-SQLite state so transcript JSONL files that already exist on disk are associated
-with the active workspace and show up in the Agent picker again.
+Run from an external terminal after quitting Cursor. The script updates Cursor's
+local SQLite state so transcript JSONL files that already exist on disk are
+associated with the active workspace and show up in the Agent picker again.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -19,13 +20,30 @@ from pathlib import Path
 from typing import Any
 
 
+def default_app_support_dir(
+    platform: str = sys.platform,
+    environ: dict[str, str] | None = None,
+) -> Path:
+    if platform == "darwin":
+        return Path.home() / "Library/Application Support/Cursor"
+
+    if platform.startswith("linux"):
+        env = os.environ if environ is None else environ
+        config_home = env.get("XDG_CONFIG_HOME")
+        if config_home:
+            return Path(config_home).expanduser() / "Cursor"
+        return Path.home() / ".config" / "Cursor"
+
+    return Path.home() / ".config" / "Cursor"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Recover Cursor Agent transcript index.")
     parser.add_argument("--workspace-path", default=".", help="Workspace folder. Defaults to cwd.")
     parser.add_argument("--cursor-home", default=str(Path.home() / ".cursor"))
     parser.add_argument(
         "--app-support",
-        default=str(Path.home() / "Library/Application Support/Cursor"),
+        default=str(default_app_support_dir()),
         help="Cursor application support directory.",
     )
     parser.add_argument("--transcript-root", help="Override agent-transcripts path.")
@@ -40,6 +58,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def command_is_cursor(command: str) -> bool:
+    if not command:
+        return False
+
+    if "/Applications/Cursor.app/" in command:
+        return True
+    if "Cursor Helper" in command and (
+        "Application Support/Cursor" in command or ".config/Cursor" in command
+    ):
+        return True
+
+    executable = command.split(maxsplit=1)[0]
+    name = Path(executable).name.lower()
+    return name in {"cursor", "cursor-url-handler"}
+
+
 def cursor_is_running() -> bool:
     result = subprocess.run(
         ["ps", "ax", "-o", "command="],
@@ -52,9 +86,7 @@ def cursor_is_running() -> bool:
         return False
 
     for command in result.stdout.splitlines():
-        if "/Applications/Cursor.app/" in command:
-            return True
-        if "Cursor Helper" in command and "Application Support/Cursor" in command:
+        if command_is_cursor(command):
             return True
     return False
 
